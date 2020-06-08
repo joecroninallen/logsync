@@ -1,30 +1,28 @@
 package app
 
 import (
-	"fmt"
-	"io/ioutil"
+	"log"
+	"os"
+
+	"github.com/gdamore/tcell"
 	"github.com/rivo/tview"
+
+	"github.com/joecroninallen/logsync/filechunk"
 )
 
-const corporate = `Leverage agile frameworks to provide a robust synopsis for high level overviews. Iterative approaches to corporate strategy foster collaborative thinking to further the overall value proposition. Organically grow the holistic world view of disruptive innovation via workplace diversity and empowerment.
-
-Bring to the table win-win survival strategies to ensure proactive domination. At the end of the day, going forward, a new normal that has evolved from generation X is on the runway heading towards a streamlined cloud solution. User generated content in real-time will have multiple touchpoints for offshoring.
-
-Capitalize on low hanging fruit to identify a ballpark value added activity to beta test. Override the digital divide with additional clickthroughs from DevOps. Nanotechnology immersion along the information highway will close the loop on focusing solely on the bottom line.
-
-[yellow]Press Enter, then Tab/Backtab for word selections`
-
-func check(e error) {
-	if e != nil {
-		panic(e)
-	}
+type fileView struct {
+	*tview.TextView
+	file      *os.File
+	headChunk *filechunk.FileChunk
+	tailChunk *filechunk.FileChunk
+	currChunk *filechunk.FileChunk
 }
 
-func getFileView(logFilename string) tview.Primitive {
-	dat, err := ioutil.ReadFile(logFilename)
-	check(err)
+/*
+func getNewFileTextView(logFilename string) tview.Primitive {
 
-        dataStr := fmt.Sprintf("%s", dat)
+
+	dataStr := fmt.Sprintf("%s", dat)
 
 	textView := tview.NewTextView().
 		SetDynamicColors(true).
@@ -34,19 +32,100 @@ func getFileView(logFilename string) tview.Primitive {
 
 	textView.SetBorder(true)
 	textView.SetTitle(logFilename)
+	textView.SetDoneFunc(func(key tcell.Key) {
+		if key == tcell.KeyEscape {
+			textView.Clear()
+		}
+	})
 
 	return textView
 }
+*/
 
+func newFileView(file *os.File, logFilename string) *fileView {
+
+	head, tail := filechunk.NewFileChunk(file)
+
+	dataStr := string(tail.FileChunkBytes)
+	textView := tview.NewTextView().
+		SetDynamicColors(true).
+		SetRegions(true).
+		SetWordWrap(true).
+		SetText(dataStr)
+
+	textView.SetBorder(true)
+	textView.SetTitle(logFilename)
+	textView.SetDoneFunc(func(key tcell.Key) {
+		if key == tcell.KeyEscape {
+			textView.Clear()
+		}
+	})
+
+	return &fileView{
+		TextView:  textView,
+		file:      file,
+		headChunk: head,
+		tailChunk: tail,
+		currChunk: head,
+	}
+}
+
+/*
+type logSyncApplication struct {
+	*tview.Application
+}
+
+func newLogSyncApplication(args []string) *logSyncApplication {
+	rd := bufio.NewReader(f)
+	dataStr, err := rd.ReadString('\n')
+	if err == io.EOF {
+		fmt.Print(line)
+		break
+	}
+
+	// loop termination condition 2: some other error.
+	// Errors happen, so check for them and do something with them.
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	textView := tview.NewTextView().
+		SetDynamicColors(true).
+		SetRegions(true).
+		SetWordWrap(true).
+		SetText(dataStr)
+
+	textView.SetBorder(true)
+	textView.SetTitle(logFilename)
+	textView.SetDoneFunc(func(key tcell.Key) {
+		if key == tcell.KeyEscape {
+			textView.Clear()
+		}
+	})
+
+	return &FileView{
+		TextView: textVeiw,
+		file:     fileToView,
+	}
+}
+*/
+
+// RunLogSync is the main tview function that builds the UI
 func RunLogSync(args []string) {
 	app := tview.NewApplication()
 	mainFlex := tview.NewFlex()
 	flexRows := tview.NewFlex().SetDirection(tview.FlexRow)
 	for _, logFilename := range args {
-		flexRows = flexRows.AddItem(getFileView(logFilename), 0, 1, false)
+		file, err := os.Open(logFilename)
+		if err != nil {
+			log.Fatal(err)
+		}
+		// defer file.Close()
+		flexRows = flexRows.AddItem(newFileView(file, logFilename), 0, 1, false)
 	}
 	mainFlex.AddItem(flexRows, 0, 1, false)
 	if err := app.SetRoot(mainFlex, true).EnableMouse(true).Run(); err != nil {
 		panic(err)
 	}
+	//app.SetInputCapture()
 }

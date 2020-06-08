@@ -23,9 +23,10 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/spf13/cobra"
 	"os"
+
 	"github.com/joecroninallen/logsync/app"
+	"github.com/spf13/cobra"
 )
 
 var cfgFile string
@@ -37,10 +38,12 @@ var rootCmd = &cobra.Command{
 	Long: `Synchronize location of multiple log files.
 	Also allows for stepping forward or backward in time to get a rough idea of 
 	how various nodes of a distributed application looked at various moments in time.`,
-  	Args: cobra.MinimumNArgs(1),
-  	Run: func(cmd *cobra.Command, args []string) {
+	Args: cobra.MinimumNArgs(1),
+	//PreRun: func(cmd *Command, args []string) {
+	//},
+	Run: func(cmd *cobra.Command, args []string) {
 		app.RunLogSync(args)
-  	},
+	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
