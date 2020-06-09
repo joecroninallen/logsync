@@ -12,10 +12,12 @@ import (
 
 type fileView struct {
 	*tview.TextView
-	file      *os.File
-	headChunk *filechunk.FileChunk
-	tailChunk *filechunk.FileChunk
-	currChunk *filechunk.FileChunk
+	file         *os.File
+	headChunk    *filechunk.FileChunk
+	tailChunk    *filechunk.FileChunk
+	currChunk    *filechunk.FileChunk
+	index        int
+	allFileViews []fileView
 }
 
 /*
@@ -42,8 +44,31 @@ func getNewFileTextView(logFilename string) tview.Primitive {
 }
 */
 
-func newFileView(file *os.File, logFilename string) *fileView {
+func (fv *fileView) LoadInputHandler() {
+	fv.SetDoneFunc(func(key tcell.Key) {
+		if key == tcell.KeyTab {
+			for i := range fv.allFileViews {
+				fv.allFileViews[i].currChunk = fv.allFileViews[i].currChunk.GetNextFileChunk()
+				if fv.allFileViews[i].currChunk == nil {
+					fv.allFileViews[i].currChunk = fv.allFileViews[i].tailChunk
+				}
+				dataStr := string(fv.allFileViews[i].currChunk.FileChunkBytes)
+				fv.allFileViews[i].allFileViews[i].SetText(dataStr)
+			}
+		} else if key == tcell.KeyBacktab {
+			for i := range fv.allFileViews {
+				fv.allFileViews[i].currChunk = fv.allFileViews[i].currChunk.GetPrevFileChunk()
+				if fv.allFileViews[i].currChunk == nil {
+					fv.allFileViews[i].currChunk = fv.allFileViews[i].headChunk
+				}
+				dataStr := string(fv.allFileViews[i].currChunk.FileChunkBytes)
+				fv.allFileViews[i].allFileViews[i].SetText(dataStr)
+			}
+		}
+	})
+}
 
+func newFileView(file *os.File, logFilename string, index int) *fileView {
 	head, tail := filechunk.NewFileChunk(file)
 
 	dataStr := string(tail.FileChunkBytes)
@@ -55,11 +80,6 @@ func newFileView(file *os.File, logFilename string) *fileView {
 
 	textView.SetBorder(true)
 	textView.SetTitle(logFilename)
-	textView.SetDoneFunc(func(key tcell.Key) {
-		if key == tcell.KeyEscape {
-			textView.Clear()
-		}
-	})
 
 	return &fileView{
 		TextView:  textView,
@@ -67,6 +87,7 @@ func newFileView(file *os.File, logFilename string) *fileView {
 		headChunk: head,
 		tailChunk: tail,
 		currChunk: head,
+		index:     index,
 	}
 }
 
@@ -115,15 +136,24 @@ func RunLogSync(args []string) {
 	app := tview.NewApplication()
 	mainFlex := tview.NewFlex()
 	flexRows := tview.NewFlex().SetDirection(tview.FlexRow)
-	for _, logFilename := range args {
+	var fileViews []fileView
+	for i, logFilename := range args {
 		file, err := os.Open(logFilename)
 		if err != nil {
 			log.Fatal(err)
 		}
-		// defer file.Close()
-		flexRows = flexRows.AddItem(newFileView(file, logFilename), 0, 1, false)
+		fv := newFileView(file, logFilename, i)
+		fileViews = append(fileViews, *fv)
 	}
+
+	for i := range fileViews {
+		fileViews[i].allFileViews = fileViews
+		fileViews[i].LoadInputHandler()
+		flexRows = flexRows.AddItem(fileViews[i], 0, 1, false)
+	}
+
 	mainFlex.AddItem(flexRows, 0, 1, false)
+
 	if err := app.SetRoot(mainFlex, true).EnableMouse(true).Run(); err != nil {
 		panic(err)
 	}
