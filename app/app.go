@@ -2,7 +2,9 @@ package app
 
 import (
 	"log"
+	"math"
 	"os"
+	"time"
 
 	"github.com/gdamore/tcell"
 	"github.com/rivo/tview"
@@ -12,12 +14,13 @@ import (
 
 type fileView struct {
 	*tview.TextView
-	file         *os.File
-	headChunk    *filechunk.FileChunk
-	tailChunk    *filechunk.FileChunk
-	currChunk    *filechunk.FileChunk
-	index        int
-	allFileViews []fileView
+	file           *os.File
+	headChunk      *filechunk.FileChunk
+	tailChunk      *filechunk.FileChunk
+	currChunk      *filechunk.FileChunk
+	index          int
+	lastScrollTime int64
+	allFileViews   []fileView
 }
 
 /*
@@ -44,17 +47,78 @@ func getNewFileTextView(logFilename string) tview.Primitive {
 }
 */
 
+// AdvanceNextFileViewForward figures out which fileview is next
+// in line and advances its current chunk.
+// This is based on who has the most recent
+func AdvanceNextFileViewForward(fileViews []fileView) int {
+	var currMinTime int64 = math.MaxInt64
+	var currMinLastScrollTime int64 = math.MaxInt64
+	var currMinChunk *filechunk.FileChunk
+	var minIndex int = -1
+	for i := range fileViews {
+		nextChunk := fileViews[i].currChunk.GetNextFileChunk()
+		if nextChunk == nil {
+			continue
+		}
+		var isNewMin bool = false
+		if nextChunk.LineTimeStamp < currMinTime {
+			isNewMin = true
+		} else if nextChunk.LineTimeStamp == currMinTime {
+			if fileViews[i].lastScrollTime < currMinLastScrollTime {
+				isNewMin = true
+			}
+		}
+
+		if isNewMin {
+			currMinTime = nextChunk.LineTimeStamp
+			minIndex = i
+			currMinChunk = nextChunk
+			currMinLastScrollTime = fileViews[i].lastScrollTime
+		}
+	}
+	if minIndex > -1 {
+		fileViews[minIndex].currChunk = currMinChunk
+		fileViews[minIndex].lastScrollTime = time.Now().Unix()
+	}
+	return minIndex
+}
+
+func (fv *fileView) SetDisplayText() {
+	currStr := "[\"curr\"]" + string(fv.currChunk.FileChunkBytes) + "[\"\"]"
+	nextChunk := fv.currChunk.GetNextFileChunk()
+	prevChunk := fv.currChunk.GetPrevFileChunk()
+
+	var prevStr string
+	var nextStr string
+
+	if nextChunk != nil {
+		nextStr = string(nextChunk.FileChunkBytes)
+	}
+
+	if prevChunk != nil {
+		prevStr = string(nextChunk.FileChunkBytes)
+	}
+
+	fv.Highlight("curr")
+	fv.ScrollToHighlight()
+	fv.SetText(prevStr + currStr + nextStr)
+}
+
 func (fv *fileView) LoadInputHandler() {
 	fv.SetDoneFunc(func(key tcell.Key) {
 		if key == tcell.KeyTab {
-			for i := range fv.allFileViews {
+			nextIndex := AdvanceNextFileViewForward(fv.allFileViews)
+			if nextIndex > -1 {
+				fv.allFileViews[nextIndex].SetDisplayText()
+			}
+			/*for i := range fv.allFileViews {
 				fv.allFileViews[i].currChunk = fv.allFileViews[i].currChunk.GetNextFileChunk()
 				if fv.allFileViews[i].currChunk == nil {
 					fv.allFileViews[i].currChunk = fv.allFileViews[i].tailChunk
 				}
 				dataStr := string(fv.allFileViews[i].currChunk.FileChunkBytes)
 				fv.allFileViews[i].allFileViews[i].SetText(dataStr)
-			}
+			}*/
 		} else if key == tcell.KeyBacktab {
 			for i := range fv.allFileViews {
 				fv.allFileViews[i].currChunk = fv.allFileViews[i].currChunk.GetPrevFileChunk()
