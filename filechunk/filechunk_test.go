@@ -51,6 +51,118 @@ func ExamplePrintShortFilechunk() {
 	// FileOffsetStart 6563, FileOffsetEnd 6997, LenFromIndices 435, len(FileChunkBytes) 435, LineTimeStamp 1590396331782
 }
 
+func ExampleIterateMediumFilechunkForward() {
+	file, err := os.Open("../medium-logs/node0-json.log")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	head, _ := filechunk.NewFileChunk(file)
+
+	var lineCount int = 1
+
+	next := head
+	for {
+		next = next.GetNextFileChunk()
+		if next != nil {
+			lineCount++
+		} else {
+			break
+		}
+	}
+
+	if !head.ValidateFileChunkChain() {
+		fmt.Printf("failure at line count %v\n", lineCount)
+	}
+
+	fmt.Printf("%v\n", lineCount)
+	// Output: 9999
+}
+
+func ExampleIterateMediumFilechunkBackward() {
+	file, err := os.Open("../medium-logs/node0-json.log")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, tail := filechunk.NewFileChunk(file)
+
+	var lineCount int = 1
+
+	prev := tail
+	for {
+		prev = prev.GetPrevFileChunk()
+		if prev != nil {
+			lineCount++
+		} else {
+			break
+		}
+	}
+
+	if !tail.ValidateFileChunkChain() {
+		fmt.Printf("failure at line count %v\n", lineCount)
+	}
+
+	fmt.Printf("%v\n", lineCount)
+	// Output: 9999
+}
+
+func ExampleIterateLargeFilechunkForward() {
+	file, err := os.Open("../logs/node0-json.log")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	head, _ := filechunk.NewFileChunk(file)
+
+	var lineCount int = 1
+
+	next := head
+	for {
+		next = next.GetNextFileChunk()
+		if next != nil {
+			lineCount++
+		} else {
+			break
+		}
+	}
+
+	if !head.ValidateFileChunkChain() {
+		fmt.Printf("failure at line count %v\n", lineCount)
+	}
+
+	fmt.Printf("%v\n", lineCount)
+	// Output: 49540
+}
+
+func ExampleIterateLargeFilechunkBackward() {
+	file, err := os.Open("../logs/node0-json.log")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, tail := filechunk.NewFileChunk(file)
+
+	var lineCount int = 1
+
+	prev := tail
+	for {
+		prev = prev.GetPrevFileChunk()
+		if prev != nil {
+			lineCount++
+		} else {
+			break
+		}
+	}
+
+	if !tail.ValidateFileChunkChain() {
+		fmt.Printf("failure at line count %v\n", lineCount)
+	}
+
+	fmt.Printf("%v\n", lineCount)
+	// Output: 49540
+}
+
 func ExamplePrintLargeFilechunk() {
 	file, err := os.Open("../logs/node0-json.log")
 	if err != nil {
