@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"regexp"
+	"strconv"
 
 	"github.com/joecroninallen/logsync/filechunk"
 )
@@ -242,4 +244,38 @@ func ExampleGetPrevChunk() {
 	// {"log":"D[2020-05-25|08:47:33.663] addVote                                      module=consensus voteHeight=91 voteType=2 valIndex=2 csHeight=92\n","stream":"stdout","time":"2020-05-25T08:47:33.663233503Z"}
 	//
 	// {"log":"D[2020-05-25|08:47:33.663] addVote                                      module=consensus voteHeight=91 voteType=2 valIndex=1 csHeight=92\n","stream":"stdout","time":"2020-05-25T08:47:33.663241978Z"}
+}
+
+func ExampleGetTimeStampFromLine() {
+	//GetTimeStampFromLine(line string) int64
+	exampleLine := "{\"log\":\"I[2020-05-25|08:45:33.068] Starting PEX service                         module=pex impl=PEX\n\",\"stream\":\"stdout\",\"time\":\"2020-05-25T08:45:31.769886329Z\"}"
+
+	lineTime := filechunk.GetTimeStampFromLine(exampleLine)
+	fmt.Printf("lineTime is: %v\n", lineTime)
+
+	compRegEx := *regexp.MustCompile(`(?P<Year>\d{4})-(?P<Month>\d{2})-(?P<Day>\d{2})\|(?P<Hour>\d{2})\:(?P<Minute>\d{2})\:(?P<Second>\d{2})\.(?P<Millisecond>\d{3})`)
+	match := compRegEx.FindStringSubmatch(exampleLine)
+
+	sampleTimeStamp := filechunk.GetTimeStampFromLine("2020-05-25|08:45:33.068")
+	fmt.Printf("sampleTimeStamp is: %v\n", sampleTimeStamp)
+
+	if match == nil {
+		fmt.Println("No match found")
+	}
+
+	paramsMap := make(map[string]int)
+	for i, name := range compRegEx.SubexpNames() {
+		if i > 0 && i <= len(match) {
+			if val, err := strconv.Atoi(match[i]); err == nil {
+				fmt.Printf("%s --> %v\n", name, val)
+				paramsMap[name] = val
+			} else {
+				panic(err)
+			}
+		}
+	}
+
+	fmt.Printf("%v\n", paramsMap)
+
+	// Output: CRONIN
 }

@@ -4,6 +4,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/gdamore/tcell"
@@ -83,6 +84,69 @@ func AdvanceNextFileViewForward(fileViews []fileView) int {
 	return minIndex
 }
 
+// AdvancePrevFileViewBackward figures out which fileview is closest prev
+// in line and advances its current chunk backward.
+// This is based on who has the latest prev time
+func AdvancePrevFileViewBackward(fileViews []fileView) int {
+	var currMaxTime int64 = -2
+	var currMinLastScrollTime int64 = math.MaxInt64
+	var currMaxChunk *filechunk.FileChunk
+	var maxIndex int = -1
+	for i := range fileViews {
+		prevChunk := fileViews[i].currChunk.GetPrevFileChunk()
+		if prevChunk == nil {
+			continue
+		}
+		var isNewMax bool = false
+		if prevChunk.LineTimeStamp > currMaxTime {
+			isNewMax = true
+		} else if prevChunk.LineTimeStamp == currMaxTime {
+			if fileViews[i].lastScrollTime < currMinLastScrollTime {
+				isNewMax = true
+			}
+		}
+
+		if isNewMax {
+			currMaxTime = prevChunk.LineTimeStamp
+			maxIndex = i
+			currMaxChunk = prevChunk
+			currMinLastScrollTime = fileViews[i].lastScrollTime
+		}
+	}
+	if maxIndex > -1 {
+		fileViews[maxIndex].currChunk = currMaxChunk
+		fileViews[maxIndex].lastScrollTime = time.Now().Unix()
+	}
+	return maxIndex
+}
+
+// MoveAllToBeginning should be private
+func MoveAllToBeginning(fileViews []fileView) {
+	for i := range fileViews {
+		fileViews[i].currChunk = fileViews[i].headChunk
+		fileViews[i].SetDisplayText()
+	}
+}
+
+// MoveAllToEnd should be private
+func MoveAllToEnd(fileViews []fileView) {
+	for i := range fileViews {
+		fileViews[i].currChunk = fileViews[i].tailChunk
+		fileViews[i].SetDisplayText()
+	}
+}
+
+// MoveAllToTime should be private
+func MoveAllToTime(fileViews []fileView, searchTime int64) {
+	for i := range fileViews {
+		closestChunk := fileViews[i].currChunk.GetFileChunkClosestToTime(searchTime)
+		if closestChunk != nil {
+			fileViews[i].currChunk = closestChunk
+			fileViews[i].SetDisplayText()
+		}
+	}
+}
+
 func (fv *fileView) SetDisplayText() {
 	currStr := "[\"curr\"]" + string(fv.currChunk.FileChunkBytes) + "[\"\"]"
 	nextChunk := fv.currChunk.GetNextFileChunk()
@@ -96,7 +160,7 @@ func (fv *fileView) SetDisplayText() {
 	}
 
 	if prevChunk != nil {
-		prevStr = string(nextChunk.FileChunkBytes)
+		prevStr = string(prevChunk.FileChunkBytes)
 	}
 
 	fv.Highlight("curr")
@@ -111,23 +175,15 @@ func (fv *fileView) LoadInputHandler() {
 			if nextIndex > -1 {
 				fv.allFileViews[nextIndex].SetDisplayText()
 			}
-			/*for i := range fv.allFileViews {
-				fv.allFileViews[i].currChunk = fv.allFileViews[i].currChunk.GetNextFileChunk()
-				if fv.allFileViews[i].currChunk == nil {
-					fv.allFileViews[i].currChunk = fv.allFileViews[i].tailChunk
-				}
-				dataStr := string(fv.allFileViews[i].currChunk.FileChunkBytes)
-				fv.allFileViews[i].allFileViews[i].SetText(dataStr)
-			}*/
 		} else if key == tcell.KeyBacktab {
-			for i := range fv.allFileViews {
-				fv.allFileViews[i].currChunk = fv.allFileViews[i].currChunk.GetPrevFileChunk()
-				if fv.allFileViews[i].currChunk == nil {
-					fv.allFileViews[i].currChunk = fv.allFileViews[i].headChunk
-				}
-				dataStr := string(fv.allFileViews[i].currChunk.FileChunkBytes)
-				fv.allFileViews[i].allFileViews[i].SetText(dataStr)
+			prevIndex := AdvancePrevFileViewBackward(fv.allFileViews)
+			if prevIndex > -1 {
+				fv.allFileViews[prevIndex].SetDisplayText()
 			}
+		} else if key == tcell.KeyEscape {
+			MoveAllToBeginning(fv.allFileViews)
+		} else if key == tcell.KeyF2 {
+			MoveAllToEnd(fv.allFileViews)
 		}
 	})
 }
@@ -195,10 +251,12 @@ func newLogSyncApplication(args []string) *logSyncApplication {
 }
 */
 
+var currCommand string
+
 // RunLogSync is the main tview function that builds the UI
 func RunLogSync(args []string) {
 	app := tview.NewApplication()
-	mainFlex := tview.NewFlex()
+	mainFlex := tview.NewFlex().SetDirection(tview.FlexRow)
 	flexRows := tview.NewFlex().SetDirection(tview.FlexRow)
 	var fileViews []fileView
 	for i, logFilename := range args {
@@ -216,10 +274,57 @@ func RunLogSync(args []string) {
 		flexRows = flexRows.AddItem(fileViews[i], 0, 1, false)
 	}
 
-	mainFlex.AddItem(flexRows, 0, 1, false)
+	inputField := tview.NewInputField().
+		SetLabel("> ").
+		SetFieldBackgroundColor(tcell.ColorBlack).
+		SetFieldWidth(80).
+		SetChangedFunc(func(text string) {
+			currCommand = text
+		}).
+		SetDoneFunc(func(key tcell.Key) {
+			if key == tcell.KeyEnter {
+				numSteps, err := strconv.Atoi(currCommand)
+				if err == nil {
+					if numSteps > 0 {
+						for i := 0; i < numSteps; i++ {
+							next := AdvanceNextFileViewForward(fileViews)
+							if next < 0 {
+								break
+							}
+						}
+					} else if numSteps < 0 {
+						numSteps *= -1
+						for i := 0; i < numSteps; i++ {
+							prev := AdvancePrevFileViewBackward(fileViews)
+							if prev < 0 {
+								break
+							}
+						}
+					}
 
+					for i := range fileViews {
+						fileViews[i].SetDisplayText()
+					}
+				} else {
+					if currCommand == "tail" {
+						MoveAllToEnd(fileViews)
+					} else if currCommand == "head" {
+						MoveAllToBeginning(fileViews)
+					} else {
+						timeStamp := filechunk.GetTimeStampFromLine(currCommand)
+						if timeStamp > 1 {
+							MoveAllToTime(fileViews, timeStamp)
+						}
+					}
+				}
+			}
+		})
+
+	mainFlex = mainFlex.AddItem(flexRows, 0, 1, false)
+	mainFlex = mainFlex.AddItem(inputField, 1, 1, true)
+
+	MoveAllToBeginning(fileViews)
 	if err := app.SetRoot(mainFlex, true).EnableMouse(true).Run(); err != nil {
 		panic(err)
 	}
-	//app.SetInputCapture()
 }

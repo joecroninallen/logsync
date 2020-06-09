@@ -281,8 +281,12 @@ func (fc *FileChunk) ValidateFileChunkChain() bool {
 // GetTimeStampFromLine gets the time stamp from the regex
 // This is hardcoded to be like the tendermint logs for now
 func GetTimeStampFromLine(line string) int64 {
-	compRegEx := *regexp.MustCompile(`\[(?P<Year>\d{4})-(?P<Month>\d{2})-(?P<Day>\d{2})\|(?P<Hour>\d{2})\:(?P<Minute>\d{2})\:(?P<Second>\d{2})\.(?P<Millisecond>\d{3})\]`)
+	compRegEx := *regexp.MustCompile(`(?P<Year>\d{4})-(?P<Month>\d{2})-(?P<Day>\d{2})\|(?P<Hour>\d{2})\:(?P<Minute>\d{2})\:(?P<Second>\d{2})\.(?P<Millisecond>\d{3})`)
 	match := compRegEx.FindStringSubmatch(line)
+
+	if match == nil {
+		return 1
+	}
 
 	paramsMap := make(map[string]int)
 	for i, name := range compRegEx.SubexpNames() {
@@ -298,7 +302,7 @@ func GetTimeStampFromLine(line string) int64 {
 	t := time.Date(paramsMap["Year"], time.Month(paramsMap["Month"]), paramsMap["Day"], paramsMap["Hour"], paramsMap["Minute"], paramsMap["Second"], paramsMap["Millisecond"]*1000000, time.UTC)
 
 	nanos := t.UnixNano()
-	return nanos / 1000000
+	return nanos
 }
 
 // SeparateFirstLogLine breaks off first log line in the loaded chunk
@@ -401,6 +405,26 @@ func (fc *FileChunk) GetNextFileChunk() *FileChunk {
 	return fc.NextChunk.SeparateFirstLogLine()
 }
 
+// GetNextTimestampedFileChunk returns the next file chunk line with a timestamp
+func (fc *FileChunk) GetNextTimestampedFileChunk() *FileChunk {
+	nextFileChunk := fc.GetNextFileChunk()
+	if nextFileChunk == nil {
+		return nil
+	}
+
+	for {
+		if nextFileChunk.LineTimeStamp > 1 {
+			return nextFileChunk
+		}
+		nextFileChunk = nextFileChunk.GetNextFileChunk()
+		if nextFileChunk == nil {
+			return nil
+		}
+	}
+
+	return nil
+}
+
 // GetPrevFileChunk returns the previous file chunk line
 func (fc *FileChunk) GetPrevFileChunk() *FileChunk {
 	if fc == nil || fc.PrevChunk == nil {
@@ -417,4 +441,59 @@ func (fc *FileChunk) GetPrevFileChunk() *FileChunk {
 	}
 
 	return fc.PrevChunk.SeparateLastLogLine()
+}
+
+// GetPrevTimestampedFileChunk returns the prev file chunk line with a timestamp
+func (fc *FileChunk) GetPrevTimestampedFileChunk() *FileChunk {
+	prevFileChunk := fc.GetPrevFileChunk()
+	if prevFileChunk == nil {
+		return nil
+	}
+
+	for {
+		if prevFileChunk.LineTimeStamp > 1 {
+			return prevFileChunk
+		}
+		prevFileChunk = prevFileChunk.GetPrevFileChunk()
+		if prevFileChunk == nil {
+			return nil
+		}
+	}
+
+	return nil
+}
+
+// GetFileChunkClosestToTime returns the previous file chunk line just before time
+func (fc *FileChunk) GetFileChunkClosestToTime(searchTime int64) *FileChunk {
+	currFileChunk := fc.GetPrevTimestampedFileChunk()
+	if currFileChunk == nil {
+		currFileChunk = fc.GetNextTimestampedFileChunk()
+	}
+
+	if currFileChunk.LineTimeStamp <= searchTime {
+		// Search forward until we get the next chunk just after
+		// search time and then return the previous chunk
+		for {
+			nextChunk := currFileChunk.GetNextTimestampedFileChunk()
+			if nextChunk == nil || nextChunk.LineTimeStamp > searchTime {
+				return currFileChunk
+			} else {
+				currFileChunk = nextChunk
+			}
+		}
+	} else if currFileChunk.LineTimeStamp > searchTime {
+		// Search backward until we get a chunk before search time and return that
+		for {
+			prevChunk := currFileChunk.GetPrevTimestampedFileChunk()
+			if prevChunk == nil || prevChunk.LineTimeStamp < searchTime {
+				if prevChunk == nil {
+					return currFileChunk
+				}
+				return prevChunk
+			}
+
+			currFileChunk = prevChunk
+		}
+	}
+	return nil
 }
