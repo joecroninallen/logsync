@@ -1,6 +1,7 @@
 package filechunk
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"regexp"
@@ -49,27 +50,23 @@ func (fc *FileChunk) LoadFileChunkForward() (*FileChunk, *FileChunk) {
 		panic("Failed to read requested newChunkSize")
 	}
 
-	fc.FileOffsetEnd = fc.FileOffsetStart + newChunkSize - 1
-
 	if err != io.EOF && originalChunkSize != newChunkSize {
 		check(err)
 
 		// Walk it back to end of log line
-		didWalkBack := false
-		for i := newChunkSize - 1; i >= 0; i-- {
-			if fc.FileChunkBytes[i] == '\n' {
+		for ; newChunkSize > 0; newChunkSize-- {
+			if fc.FileChunkBytes[newChunkSize-1] == '\n' {
 				break
-			} else {
-				didWalkBack = true
-				fc.FileOffsetEnd--
-				newChunkSize--
 			}
 		}
 
-		if didWalkBack {
-			fc.FileChunkBytes = fc.FileChunkBytes[0:newChunkSize]
+		if newChunkSize == 0 {
+			newChunkSize = 1
 		}
 	}
+
+	fc.FileOffsetEnd = fc.FileOffsetStart + newChunkSize - 1
+	fc.FileChunkBytes = fc.FileChunkBytes[0:newChunkSize]
 
 	nextChunkSize := originalChunkSize - newChunkSize
 	if nextChunkSize > 0 {
@@ -83,10 +80,13 @@ func (fc *FileChunk) LoadFileChunkForward() (*FileChunk, *FileChunk) {
 			PrevChunk:       fc,
 			NextChunk:       currNext,
 		}
-		currNext.PrevChunk = fc.NextChunk
+		if currNext != nil {
+			currNext.PrevChunk = fc.NextChunk
+		}
 	}
 
 	fc = fc.SeparateFirstLogLine()
+
 	var lastChunk *FileChunk
 	if fc.NextChunk != nil && fc.NextChunk.FileChunkBytes != nil {
 		lastChunk = fc.NextChunk.SeparateLastLogLine()
@@ -126,28 +126,26 @@ func (fc *FileChunk) LoadFileChunkBackward() (*FileChunk, *FileChunk) {
 		}
 
 		// Walk it forward to end of beginning of next line
-		didWalkForward := false
 		var newChunkStartIndex int = 1
 		for ; int64(newChunkStartIndex) < newChunkSize; newChunkStartIndex++ {
 			if fc.FileChunkBytes[newChunkStartIndex-1] == '\n' {
 				break
-			} else {
-				didWalkForward = true
-				fc.FileOffsetStart++
-				newChunkSize--
 			}
 		}
 
-		if didWalkForward {
-			if int64(newChunkStartIndex) == newChunkSize {
-				newChunkStartIndex--
-			}
-			fc.FileChunkBytes = fc.FileChunkBytes[newChunkStartIndex:]
+		if int64(newChunkStartIndex) == newChunkSize {
+			newChunkStartIndex = 0
 		}
+
+		newChunkSize -= int64(newChunkStartIndex)
+
+		fc.FileChunkBytes = fc.FileChunkBytes[newChunkStartIndex:]
 	}
 
+	fc.FileOffsetStart = 1 + fc.FileOffsetEnd - newChunkSize
+
 	prevChunkSize := originalChunkSize - newChunkSize
-	if prevChunkSize > 0 {
+	if prevChunkSize > 0 && fc.FileOffsetStart-1 != fc.PrevChunk.FileOffsetEnd {
 		currPrev := fc.PrevChunk
 		fc.PrevChunk = &FileChunk{
 			FileToRead:      fc.FileToRead,
@@ -158,10 +156,18 @@ func (fc *FileChunk) LoadFileChunkBackward() (*FileChunk, *FileChunk) {
 			PrevChunk:       fc.PrevChunk,
 			NextChunk:       fc,
 		}
-		currPrev.NextChunk = fc.PrevChunk
+		if currPrev != nil {
+			currPrev.NextChunk = fc.PrevChunk
+		}
+	}
+
+	if !fc.ValidateFileChunkChain() {
+		fmt.Println("Invalid before fc.SeparateFirstLogLine")
+		fc.PrintFileChunkChain()
 	}
 
 	fc = fc.SeparateFirstLogLine()
+
 	var lastChunk *FileChunk
 	if fc.NextChunk != nil && fc.NextChunk.FileChunkBytes != nil {
 		lastChunk = fc.NextChunk.SeparateLastLogLine()
@@ -189,13 +195,87 @@ func NewFileChunk(f *os.File) (*FileChunk, *FileChunk) {
 	}
 
 	headStart, headEnd := startChunk.LoadFileChunkForward()
+
 	if headEnd.NextChunk == nil {
 		return headStart, headEnd
 	}
 
-	_, tailEnd := headEnd.NextChunk.LoadFileChunkForward()
+	_, tailEnd := headEnd.NextChunk.LoadFileChunkBackward()
 
 	return headStart, tailEnd
+}
+
+// PrintFileChunkChain prints the meta info about the entire chain
+func (fc *FileChunk) PrintFileChunkChain() {
+	head := fc
+	for {
+		if head.PrevChunk == nil {
+			break
+		}
+		head = head.PrevChunk
+	}
+
+	tail := head
+
+	fileInfo, err := tail.FileToRead.Stat()
+	check(err)
+	fileSize := fileInfo.Size()
+	fmt.Printf("Printing file chunk chain for file with size: %v\n", fileSize)
+
+	for {
+		fmt.Printf("FileOffsetStart %v, FileOffsetEnd %v, LenFromIndices %v, len(FileChunkBytes) %v, LineTimeStamp %v\n", tail.FileOffsetStart, tail.FileOffsetEnd, 1+tail.FileOffsetEnd-tail.FileOffsetStart, len(tail.FileChunkBytes), tail.LineTimeStamp)
+		tail = tail.NextChunk
+		if tail == nil {
+			break
+		}
+	}
+}
+
+// ValidateFileChunkChain prints the meta info about the entire chain
+func (fc *FileChunk) ValidateFileChunkChain() bool {
+	head := fc
+	for {
+		if head.PrevChunk == nil {
+			break
+		}
+		head = head.PrevChunk
+	}
+
+	if head == nil {
+		return false
+	}
+
+	if head.FileOffsetStart != 0 {
+		return false
+	}
+
+	tail := head
+
+	for {
+		if tail.FileChunkBytes != nil {
+			if 1+tail.FileOffsetEnd-tail.FileOffsetStart != int64(len(tail.FileChunkBytes)) {
+				return false
+			}
+		}
+
+		if tail.NextChunk != nil {
+			if tail.NextChunk.FileOffsetStart != tail.FileOffsetEnd+1 {
+				return false
+			}
+			tail = tail.NextChunk
+		} else {
+			fileInfo, err := tail.FileToRead.Stat()
+			check(err)
+			fileSize := fileInfo.Size()
+
+			if tail.FileOffsetEnd != fileSize-1 {
+				return false
+			}
+			break
+		}
+	}
+
+	return true
 }
 
 // GetTimeStampFromLine gets the time stamp from the regex
@@ -267,28 +347,23 @@ func (fc *FileChunk) SeparateFirstLogLine() *FileChunk {
 // SeparateLastLogLine breaks off the last log line in the loaded chunk
 func (fc *FileChunk) SeparateLastLogLine() *FileChunk {
 	originalChunkEndIndex := fc.FileOffsetEnd - fc.FileOffsetStart
-	lastLineChunkIndex := originalChunkEndIndex - 1
-	for ; lastLineChunkIndex >= 0; lastLineChunkIndex-- {
-		if fc.FileChunkBytes[lastLineChunkIndex] == '\n' {
-			lastLineChunkIndex++
+	newPrevEndIndex := originalChunkEndIndex - 1
+	for ; newPrevEndIndex >= 0; newPrevEndIndex-- {
+		if fc.FileChunkBytes[newPrevEndIndex] == '\n' {
 			break
 		}
 	}
 
-	if lastLineChunkIndex < 0 {
-		lastLineChunkIndex = 0
-	}
-
-	if lastLineChunkIndex > 0 {
+	if newPrevEndIndex >= 0 {
 		// Only create a new prevChunk if the current prev chunk ends prior
 		// to the new end that we found
-		if fc.PrevChunk == nil || fc.PrevChunk.FileOffsetEnd != fc.FileOffsetStart+lastLineChunkIndex-1 {
+		if fc.PrevChunk == nil || fc.PrevChunk.FileOffsetEnd != fc.FileOffsetStart+newPrevEndIndex {
 			currPrevChunk := fc.PrevChunk
 			fc.PrevChunk = &FileChunk{
 				FileToRead:      fc.FileToRead,
-				FileChunkBytes:  fc.FileChunkBytes[0 : lastLineChunkIndex-1],
+				FileChunkBytes:  fc.FileChunkBytes[0 : newPrevEndIndex+1],
 				FileOffsetStart: fc.FileOffsetStart,
-				FileOffsetEnd:   fc.FileOffsetStart + lastLineChunkIndex - 1,
+				FileOffsetEnd:   fc.FileOffsetStart + newPrevEndIndex,
 				LineTimeStamp:   -1,
 				PrevChunk:       fc.PrevChunk,
 				NextChunk:       fc,
@@ -298,11 +373,11 @@ func (fc *FileChunk) SeparateLastLogLine() *FileChunk {
 				currPrevChunk.NextChunk = fc.PrevChunk
 			}
 
-			fc.FileOffsetStart = fc.FileOffsetStart + lastLineChunkIndex
+			fc.FileOffsetStart = fc.PrevChunk.FileOffsetEnd + 1
 		}
 	}
 
-	fc.FileChunkBytes = fc.FileChunkBytes[lastLineChunkIndex:]
+	fc.FileChunkBytes = fc.FileChunkBytes[newPrevEndIndex+1:]
 	fc.LineTimeStamp = GetTimeStampFromLine(string(fc.FileChunkBytes))
 
 	return fc
