@@ -13,44 +13,27 @@ import (
 	"github.com/joecroninallen/logsync/filechunk"
 )
 
+// fileView represents a TextView (aka text box) in the
+// the UI that is used to view into one of the files.
+// Each fileView is assigned one log file,
+// and it is responsible for showing the appropriate section of the
+// file to the user.
 type fileView struct {
-	*tview.TextView
-	file           *os.File
-	headChunk      *filechunk.FileChunk
-	tailChunk      *filechunk.FileChunk
-	currChunk      *filechunk.FileChunk
-	index          int
-	lastScrollTime int64
-	allFileViews   []fileView
+	*tview.TextView                      // The TextView is the text box widget from rivo/tview
+	file            *os.File             // The file that this fileView is responsible for viewing
+	headChunk       *filechunk.FileChunk // The headChunk is stored to allow for easy jumping to head of file
+	tailChunk       *filechunk.FileChunk // The tailChunk is stored to allow for easy jumping to tail of file
+	currChunk       *filechunk.FileChunk // The currentChunk is the current chunk being viewed on the screen
+	index           int                  // This is the index of this fileView out of the list of all files being viewed
+	lastScrollTime  int64                // Stores the last time this file was scrolled. Used to break ties when the timestamps are the same
+	allFileViews    []fileView           // Stores a pointer to all the other fileViews including our own
 }
-
-/*
-func getNewFileTextView(logFilename string) tview.Primitive {
-
-
-	dataStr := fmt.Sprintf("%s", dat)
-
-	textView := tview.NewTextView().
-		SetDynamicColors(true).
-		SetRegions(true).
-		SetWordWrap(true).
-		SetText(dataStr)
-
-	textView.SetBorder(true)
-	textView.SetTitle(logFilename)
-	textView.SetDoneFunc(func(key tcell.Key) {
-		if key == tcell.KeyEscape {
-			textView.Clear()
-		}
-	})
-
-	return textView
-}
-*/
 
 // AdvanceNextFileViewForward figures out which fileview is next
 // in line and advances its current chunk.
-// This is based on who has the most recent
+// This is based on who has the most recent timestamp and it is called
+// when navigating forward. This advances one step, so we choose one file
+// to advance and advance it by one timestamped log line
 func AdvanceNextFileViewForward(fileViews []fileView) int {
 	var currMinTime int64 = math.MaxInt64
 	var currMinLastScrollTime int64 = math.MaxInt64
@@ -84,9 +67,11 @@ func AdvanceNextFileViewForward(fileViews []fileView) int {
 	return minIndex
 }
 
-// AdvancePrevFileViewBackward figures out which fileview is closest prev
-// in line and advances its current chunk backward.
-// This is based on who has the latest prev time
+// AdvancePrevFileViewBackward figures out which fileview is the closest previous log
+// line and advances its current chunk backward.
+// This is based on who has the latest previous time and it is called
+// when navigating backward. This advances one step backward, so we choose one file
+// to advance backward and advance back it by one timestamped log line
 func AdvancePrevFileViewBackward(fileViews []fileView) int {
 	var currMaxTime int64 = -2
 	var currMinLastScrollTime int64 = math.MaxInt64
@@ -120,7 +105,8 @@ func AdvancePrevFileViewBackward(fileViews []fileView) int {
 	return maxIndex
 }
 
-// MoveAllToBeginning should be private
+// MoveAllToBeginning moves all log lines to their respective head log line
+// at the beginning of the file
 func MoveAllToBeginning(fileViews []fileView) {
 	for i := range fileViews {
 		fileViews[i].currChunk = fileViews[i].headChunk
@@ -128,7 +114,8 @@ func MoveAllToBeginning(fileViews []fileView) {
 	}
 }
 
-// MoveAllToEnd should be private
+// MoveAllToEnd moves all log lines to their respective tail log line
+// at the end of the file.
 func MoveAllToEnd(fileViews []fileView) {
 	for i := range fileViews {
 		fileViews[i].currChunk = fileViews[i].tailChunk
@@ -136,7 +123,10 @@ func MoveAllToEnd(fileViews []fileView) {
 	}
 }
 
-// MoveAllToTime should be private
+// MoveAllToTime finds the closest log line to the searchTime and
+// moves all the log lines such that they are at the log just before
+// the searchTime. This allows us to search based on time and have all
+// the logs jump to that spot.
 func MoveAllToTime(fileViews []fileView, searchTime int64) {
 	for i := range fileViews {
 		closestChunk := fileViews[i].currChunk.GetFileChunkClosestToTime(searchTime)
@@ -147,6 +137,9 @@ func MoveAllToTime(fileViews []fileView, searchTime int64) {
 	}
 }
 
+// This updates the display for the fileView based on the currentChunk.
+// For now, we show the currentChunk highlighted and then the previous and
+// next chunks for context.
 func (fv *fileView) SetDisplayText() {
 	currStr := "[\"curr\"]" + string(fv.currChunk.FileChunkBytes) + "[\"\"]"
 	nextChunk := fv.currChunk.GetNextFileChunk()
@@ -168,6 +161,9 @@ func (fv *fileView) SetDisplayText() {
 	fv.SetText(prevStr + currStr + nextStr)
 }
 
+// LoadInputHandler sets the key commands for the file view.
+// If any of the file views has the focus, then TAB is shortcut
+// to step one forward and BACKTAB steps one backward.
 func (fv *fileView) LoadInputHandler() {
 	fv.SetDoneFunc(func(key tcell.Key) {
 		if key == tcell.KeyTab {
@@ -180,14 +176,12 @@ func (fv *fileView) LoadInputHandler() {
 			if prevIndex > -1 {
 				fv.allFileViews[prevIndex].SetDisplayText()
 			}
-		} else if key == tcell.KeyEscape {
-			MoveAllToBeginning(fv.allFileViews)
-		} else if key == tcell.KeyF2 {
-			MoveAllToEnd(fv.allFileViews)
 		}
 	})
 }
 
+// newFileView creates a new FileView for the given file and and logFilename
+// and it also tells us what index we are in the list of all FileViews.
 func newFileView(file *os.File, logFilename string, index int) *fileView {
 	head, tail := filechunk.NewFileChunk(file)
 
@@ -211,49 +205,23 @@ func newFileView(file *os.File, logFilename string, index int) *fileView {
 	}
 }
 
-/*
-type logSyncApplication struct {
-	*tview.Application
-}
-
-func newLogSyncApplication(args []string) *logSyncApplication {
-	rd := bufio.NewReader(f)
-	dataStr, err := rd.ReadString('\n')
-	if err == io.EOF {
-		fmt.Print(line)
-		break
-	}
-
-	// loop termination condition 2: some other error.
-	// Errors happen, so check for them and do something with them.
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	textView := tview.NewTextView().
-		SetDynamicColors(true).
-		SetRegions(true).
-		SetWordWrap(true).
-		SetText(dataStr)
-
-	textView.SetBorder(true)
-	textView.SetTitle(logFilename)
-	textView.SetDoneFunc(func(key tcell.Key) {
-		if key == tcell.KeyEscape {
-			textView.Clear()
-		}
-	})
-
-	return &FileView{
-		TextView: textVeiw,
-		file:     fileToView,
-	}
-}
-*/
-
+// currCommand stores the current comment entered in the command edit
+// box at the bottom
 var currCommand string
 
 // RunLogSync is the main tview function that builds the UI
+// Right now, it consists of one text box for each file being viewed,
+// and they are stacked on top of each other.
+// Below that is an edit box for entering commands.
+//
+// Here are the valid commands:
+// "head" jumps all files to the beginning
+// "tail" jumps all files to the end
+// Any positive number jumps that many steps, where each step chooses the next
+// log line based on time stamp and advancing that file foward one.
+// Any negative number goes back that many steps.
+// Also it is possible to search based on a timestamp like
+// "2020-05-25|08:47:33.663" to jump to the closest log line for all the files
 func RunLogSync(args []string) {
 	app := tview.NewApplication()
 	mainFlex := tview.NewFlex().SetDirection(tview.FlexRow)

@@ -1,0 +1,26 @@
+{"log":"I[2020-05-25|08:45:31.672] Starting multiAppConn service                module=proxy impl=multiAppConn\n","stream":"stdout","time":"2020-05-25T08:45:31.672952543Z"}
+{"log":"I[2020-05-25|08:45:31.672] Starting localClient service                 module=abci-client connection=query impl=localClient\n","stream":"stdout","time":"2020-05-25T08:45:31.672972667Z"}
+{"log":"I[2020-05-25|08:45:31.672] Starting localClient service                 module=abci-client connection=snapshot impl=localClient\n","stream":"stdout","time":"2020-05-25T08:45:31.672975375Z"}
+{"log":"I[2020-05-25|08:45:31.672] Starting localClient service                 module=abci-client connection=mempool impl=localClient\n","stream":"stdout","time":"2020-05-25T08:45:31.672977085Z"}
+{"log":"I[2020-05-25|08:45:31.672] Starting localClient service                 module=abci-client connection=consensus impl=localClient\n","stream":"stdout","time":"2020-05-25T08:45:31.672978785Z"}
+{"log":"I[2020-05-25|08:45:31.672] Starting EventBus service                    module=events impl=EventBus\n","stream":"stdout","time":"2020-05-25T08:45:31.672980468Z"}
+{"log":"I[2020-05-25|08:45:31.672] Starting PubSub service                      module=pubsub impl=PubSub\n","stream":"stdout","time":"2020-05-25T08:45:31.672982105Z"}
+{"log":"I[2020-05-25|08:45:31.675] Starting IndexerService service              module=txindex impl=IndexerService\n","stream":"stdout","time":"2020-05-25T08:45:31.675594854Z"}
+{"log":"I[2020-05-25|08:45:31.675] ABCI Handshake App Info                      module=consensus height=0 hash= software-version=0.17.0 protocol-version=1\n","stream":"stdout","time":"2020-05-25T08:45:31.675603495Z"}
+{"log":"I[2020-05-25|08:45:31.675] ABCI Replay Blocks                           module=consensus appHeight=0 storeHeight=0 stateHeight=0\n","stream":"stdout","time":"2020-05-25T08:45:31.676083271Z"}
+{"log":"I[2020-05-25|08:45:31.676] Completed ABCI Handshake - Tendermint and App are synced module=consensus appHeight=0 appHash=\n","stream":"stdout","time":"2020-05-25T08:45:31.676781829Z"}
+{"log":"I[2020-05-25|08:45:31.676] Version info                                 module=main software=0.33.4 block=10 p2p=7\n","stream":"stdout","time":"2020-05-25T08:45:31.676932702Z"}
+{"log":"I[2020-05-25|08:45:31.676] This node is a validator                     module=consensus addr=27BAC9E09482A750F329D6007C24B692B3AC0EDA pubKey=PubKeyEd25519{D85CA039AB11157BE17B63785715A47D8BD35F4A4B296CAF9895C3238BADA16A}\n","stream":"stdout","time":"2020-05-25T08:45:31.676939691Z"}
+{"log":"I[2020-05-25|08:45:31.679] P2P Node ID                                  module=p2p ID=ae83e592ad836549812ec4fc75246efe19b422e6 file=/tendermint/node1/config/node_key.json\n","stream":"stdout","time":"2020-05-25T08:45:31.679262665Z"}
+{"log":"I[2020-05-25|08:45:31.679] Adding persistent peers                      module=p2p addrs=\"[2e352167f6097f6e0fbb31bd92f5c3b2b0bd78ec@192.167.10.2:26656 ae83e592ad836549812ec4fc75246efe19b422e6@192.167.10.3:26656 8f698d97563b73f8a48a49a782a61b680951a56f@192.167.10.4:26656 b1c2154637350e5bd2d86fd76580c9b235af50bd@192.167.10.5:26656]\"\n","stream":"stdout","time":"2020-05-25T08:45:31.679270863Z"}
+{"log":"I[2020-05-25|08:45:31.679] Adding unconditional peer ids                module=p2p ids=[]\n","stream":"stdout","time":"2020-05-25T08:45:31.679273711Z"}
+{"log":"I[2020-05-25|08:45:31.679] Add our address to book                      module=p2p book=/tendermint/node1/config/addrbook.json addr=ae83e592ad836549812ec4fc75246efe19b422e6@0.0.0.0:26656\n","stream":"stdout","time":"2020-05-25T08:45:31.679445695Z"}
+{"log":"I[2020-05-25|08:45:31.679] Starting Node service                        module=main impl=Node\n","stream":"stdout","time":"2020-05-25T08:45:31.679451884Z"}
+{"log":"I[2020-05-25|08:45:31.679] Starting P2P Switch service                  module=p2p impl=\"P2P Switch\"\n","stream":"stdout","time":"2020-05-25T08:45:31.679937111Z"}
+{"log":"I[2020-05-25|08:45:31.679] Starting BlockchainReactor service           module=blockchain impl=BlockchainReactor\n","stream":"stdout","time":"2020-05-25T08:45:31.679943364Z"}
+{"log":"I[2020-05-25|08:45:31.679] Starting BlockPool service                   module=blockchain impl=BlockPool\n","stream":"stdout","time":"2020-05-25T08:45:31.67995025Z"}
+{"log":"I[2020-05-25|08:45:31.679] Starting Consensus service                   module=consensus impl=ConsensusReactor\n","stream":"stdout","time":"2020-05-25T08:45:31.679952275Z"}
+{"log":"I[2020-05-25|08:45:31.679] Reactor                                      module=consensus waitSync=true\n","stream":"stdout","time":"2020-05-25T08:45:31.679953928Z"}
+{"log":"I[2020-05-25|08:45:31.679] Starting Evidence service                    module=evidence impl=Evidence\n","stream":"stdout","time":"2020-05-25T08:45:31.679955533Z"}
+{"log":"I[2020-05-25|08:45:31.679] Starting StateSync service                   module=statesync impl=StateSync\n","stream":"stdout","time":"2020-05-25T08:45:31.679993209Z"}
+{"log":"I[2020-05-25|08:45:31.679] Starting PEX service                         module=pex impl=PEX\n","stream":"stdout","time":"2020-05-25T08:45:31.680000882Z"}

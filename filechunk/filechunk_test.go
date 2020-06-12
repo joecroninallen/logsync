@@ -16,7 +16,7 @@ func ExampleTheTestingFramework() {
 }
 
 func ExampleLoadShortFilechunk() {
-	file, err := os.Open("../short-logs/node0-json.log")
+	file, err := os.Open("../test_data/short-logs/node0-json.log")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -34,7 +34,7 @@ func ExampleLoadShortFilechunk() {
 }
 
 func ExamplePrintShortFilechunk() {
-	file, err := os.Open("../short-logs/node0-json.log")
+	file, err := os.Open("../test_data/short-logs/node0-json.log")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -44,17 +44,17 @@ func ExamplePrintShortFilechunk() {
 	head.PrintFileChunkChain()
 	tail.PrintFileChunkChain()
 	// Output: Printing file chunk chain for file with size: 6998
-	// FileOffsetStart 0, FileOffsetEnd 172, LenFromIndices 173, len(FileChunkBytes) 173, LineTimeStamp 1590396331749
+	// FileOffsetStart 0, FileOffsetEnd 172, LenFromIndices 173, len(FileChunkBytes) 173, LineTimeStamp 1590396331749000000
 	// FileOffsetStart 173, FileOffsetEnd 6562, LenFromIndices 6390, len(FileChunkBytes) 6390, LineTimeStamp -1
-	// FileOffsetStart 6563, FileOffsetEnd 6997, LenFromIndices 435, len(FileChunkBytes) 435, LineTimeStamp 1590396331782
+	// FileOffsetStart 6563, FileOffsetEnd 6997, LenFromIndices 435, len(FileChunkBytes) 435, LineTimeStamp 1590396331782000000
 	// Printing file chunk chain for file with size: 6998
-	// FileOffsetStart 0, FileOffsetEnd 172, LenFromIndices 173, len(FileChunkBytes) 173, LineTimeStamp 1590396331749
+	// FileOffsetStart 0, FileOffsetEnd 172, LenFromIndices 173, len(FileChunkBytes) 173, LineTimeStamp 1590396331749000000
 	// FileOffsetStart 173, FileOffsetEnd 6562, LenFromIndices 6390, len(FileChunkBytes) 6390, LineTimeStamp -1
-	// FileOffsetStart 6563, FileOffsetEnd 6997, LenFromIndices 435, len(FileChunkBytes) 435, LineTimeStamp 1590396331782
+	// FileOffsetStart 6563, FileOffsetEnd 6997, LenFromIndices 435, len(FileChunkBytes) 435, LineTimeStamp 1590396331782000000
 }
 
 func ExampleIterateMediumFilechunkForward() {
-	file, err := os.Open("../medium-logs/node0-json.log")
+	file, err := os.Open("../test_data/medium-logs/node0-json.log")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func ExampleIterateMediumFilechunkForward() {
 }
 
 func ExampleIterateMediumFilechunkBackward() {
-	file, err := os.Open("../medium-logs/node0-json.log")
+	file, err := os.Open("../test_data/medium-logs/node0-json.log")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -110,7 +110,7 @@ func ExampleIterateMediumFilechunkBackward() {
 }
 
 func ExampleIterateLargeFilechunkForward() {
-	file, err := os.Open("../logs/node0-json.log")
+	file, err := os.Open("../test_data/logs/node0-json.log")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -138,7 +138,7 @@ func ExampleIterateLargeFilechunkForward() {
 }
 
 func ExampleIterateLargeFilechunkBackward() {
-	file, err := os.Open("../logs/node0-json.log")
+	file, err := os.Open("../test_data/logs/node0-json.log")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -166,7 +166,7 @@ func ExampleIterateLargeFilechunkBackward() {
 }
 
 func ExamplePrintLargeFilechunk() {
-	file, err := os.Open("../logs/node0-json.log")
+	file, err := os.Open("../test_data/logs/node0-json.log")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -175,16 +175,26 @@ func ExamplePrintLargeFilechunk() {
 
 	head.PrintFileChunkChain()
 	tail.PrintFileChunkChain()
-	// Output: FileOffsetStart 0, FileOffsetEnd 172, LenFromIndices 173, len(FileChunkBytes) 173, LineTimeStamp 1590396331749
-	// FileOffsetStart 173, FileOffsetEnd 6562, LenFromIndices 6390, len(FileChunkBytes) 6389, LineTimeStamp -1
-	// FileOffsetStart 6563, FileOffsetEnd 6997, LenFromIndices 435, len(FileChunkBytes) 435, LineTimeStamp 1590396331782
-	// FileOffsetStart 0, FileOffsetEnd 172, LenFromIndices 173, len(FileChunkBytes) 173, LineTimeStamp 1590396331749
-	// FileOffsetStart 173, FileOffsetEnd 6562, LenFromIndices 6390, len(FileChunkBytes) 6389, LineTimeStamp -1
-	// FileOffsetStart 6563, FileOffsetEnd 6997, LenFromIndices 435, len(FileChunkBytes) 435, LineTimeStamp 1590396331782
+	// Output: Printing file chunk chain for file with size: 17039577
+	// FileOffsetStart 0, FileOffsetEnd 172, LenFromIndices 173, len(FileChunkBytes) 173, LineTimeStamp 1590396331749000000
+	// FileOffsetStart 173, FileOffsetEnd 261742, LenFromIndices 261570, len(FileChunkBytes) 261570, LineTimeStamp -1
+	// FileOffsetStart 261743, FileOffsetEnd 262104, LenFromIndices 362, len(FileChunkBytes) 362, LineTimeStamp 1590396334444000000
+	// FileOffsetStart 262105, FileOffsetEnd 16777656, LenFromIndices 16515552, len(FileChunkBytes) 0, LineTimeStamp -1
+	// FileOffsetStart 16777657, FileOffsetEnd 16777942, LenFromIndices 286, len(FileChunkBytes) 286, LineTimeStamp 1590396452039000000
+	// FileOffsetStart 16777943, FileOffsetEnd 17039369, LenFromIndices 261427, len(FileChunkBytes) 261427, LineTimeStamp -1
+	// FileOffsetStart 17039370, FileOffsetEnd 17039576, LenFromIndices 207, len(FileChunkBytes) 207, LineTimeStamp 1590396453663000000
+	// Printing file chunk chain for file with size: 17039577
+	// FileOffsetStart 0, FileOffsetEnd 172, LenFromIndices 173, len(FileChunkBytes) 173, LineTimeStamp 1590396331749000000
+	// FileOffsetStart 173, FileOffsetEnd 261742, LenFromIndices 261570, len(FileChunkBytes) 261570, LineTimeStamp -1
+	// FileOffsetStart 261743, FileOffsetEnd 262104, LenFromIndices 362, len(FileChunkBytes) 362, LineTimeStamp 1590396334444000000
+	// FileOffsetStart 262105, FileOffsetEnd 16777656, LenFromIndices 16515552, len(FileChunkBytes) 0, LineTimeStamp -1
+	// FileOffsetStart 16777657, FileOffsetEnd 16777942, LenFromIndices 286, len(FileChunkBytes) 286, LineTimeStamp 1590396452039000000
+	// FileOffsetStart 16777943, FileOffsetEnd 17039369, LenFromIndices 261427, len(FileChunkBytes) 261427, LineTimeStamp -1
+	// FileOffsetStart 17039370, FileOffsetEnd 17039576, LenFromIndices 207, len(FileChunkBytes) 207, LineTimeStamp 1590396453663000000
 }
 
 func ExampleLoadLargeFilechunk() {
-	file, err := os.Open("../logs/node0-json.log")
+	file, err := os.Open("../test_data/logs/node0-json.log")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -202,7 +212,7 @@ func ExampleLoadLargeFilechunk() {
 }
 
 func ExampleGetNextChunk() {
-	file, err := os.Open("../logs/node0-json.log")
+	file, err := os.Open("../test_data/logs/node0-json.log")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -222,7 +232,7 @@ func ExampleGetNextChunk() {
 }
 
 func ExampleGetPrevChunk() {
-	file, err := os.Open("../logs/node0-json.log")
+	file, err := os.Open("../test_data/logs/node0-json.log")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -275,7 +285,13 @@ func ExampleGetTimeStampFromLine() {
 		}
 	}
 
-	fmt.Printf("%v\n", paramsMap)
-
-	// Output: CRONIN
+	// Output: lineTime is: 1590396333068000000
+	// sampleTimeStamp is: 1590396333068000000
+	// Year --> 2020
+	// Month --> 5
+	// Day --> 25
+	// Hour --> 8
+	// Minute --> 45
+	// Second --> 33
+	// Millisecond --> 68
 }

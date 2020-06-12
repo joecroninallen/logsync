@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+// defaultChunkSize is the size of the block we try to read from the file
+// We read a rather large chunk to minimize the number of reads.
 const defaultChunkSize int64 = 262144
 
 func check(e error) {
@@ -18,19 +20,32 @@ func check(e error) {
 }
 
 // FileChunk is how we can step through file and view chunks at a time
+// FileChunk is a node in a linked list of "chunks" in a file we are viewing.
+// Each chunk represents a section of the file starting from FileOffsetStart
+// going through FileOffsetEnd.
+// We first read a large chunk defined by defaultChunkSize, and then as
+// we step through, we break a part chunks such that a chunk represents
+// a single line in the log file. Once we have done that, we can set the
+// LineTimeStamp.
 type FileChunk struct {
-	FileToRead      *os.File
-	FileChunkBytes  []byte
-	FileOffsetStart int64
-	FileOffsetEnd   int64
-	LineTimeStamp   int64
-	PrevChunk       *FileChunk
-	NextChunk       *FileChunk
+	FileToRead      *os.File   // file we are viewing
+	FileChunkBytes  []byte     // the bytes will be read into memory here once chunk is loaded
+	FileOffsetStart int64      // the file offset start, where we seek to in the file before reading
+	FileOffsetEnd   int64      // we read up to and including the FileOffsetEnd
+	LineTimeStamp   int64      // if this chunk represents a single log line, this will be set
+	PrevChunk       *FileChunk // previous FileChunk in linked list
+	NextChunk       *FileChunk // next FileChunk in linked list
 }
 
 // LoadFileChunkForward loads the file chunk that would
 // come after an existing file chunk, or from nothing if it
-// is the head
+// is the head. In other words, this performs an actual read from the
+// disk to load a section of file that is of size defaultChunkSize,
+// or less if its the end of the file.
+// We don't read the whole file at once, we only read in chunks as needed.
+// This function is used when we are navigating forward in the file
+// and come to the end of the current chunk and realize we need
+// to read in the next chunk from the file.
 func (fc *FileChunk) LoadFileChunkForward() (*FileChunk, *FileChunk) {
 	originalChunkSize := (fc.FileOffsetEnd - fc.FileOffsetStart) + 1
 	newChunkSize := defaultChunkSize
@@ -97,7 +112,13 @@ func (fc *FileChunk) LoadFileChunkForward() (*FileChunk, *FileChunk) {
 
 // LoadFileChunkBackward loads the file chunk that would
 // come before an existing file chunk, or from nothing if it
-// is the tail
+// is the tail. In other words, this performs an actual read from the
+// disk to load a section of file that is of size defaultChunkSize,
+// or less if the preceedng chunk is found to be smaller.
+// We don't read the whole file at once, we only read in chunks as needed.
+// This function is used when we are navigating backward in the file
+// and come to the beginning of the current chunk and realize we need
+// to read in the previous chunk from the file.
 func (fc *FileChunk) LoadFileChunkBackward() (*FileChunk, *FileChunk) {
 	originalChunkSize := (fc.FileOffsetEnd - fc.FileOffsetStart) + 1
 	newChunkSize := defaultChunkSize
@@ -177,7 +198,29 @@ func (fc *FileChunk) LoadFileChunkBackward() (*FileChunk, *FileChunk) {
 }
 
 // NewFileChunk loads a new file chunk from the file
-// and returns the first and last log line chunks
+// and returns the first and last log line chunks.
+// This is called in the beginning to start our initial
+// linked list of file chunks.
+// First, it reads in the first defaultChunkSize at the head
+// of the file. It then breaks off the first log line
+// of that initial chunk and also the last log line of
+// that initial chunk. It leaves a large chunk in between
+// those two chunks which has the bytes from the file in between,
+// but that haven't yet been broken down by log line.
+// Next, we read in the last block in the file of size
+// defaultChunkSize, and we do the same to this chunk and
+// break off the first line and last line of this tail chunk.
+// Thus, the tail chunk looks like the same as the first chunk
+// in having the first and last line broken off and leaving
+// a middle chunk in between that we have not yet broken apart
+// into separate lines.
+// In between the last log line of the head chunk and the first
+// log line of the tail chunk, we have a large FileChunk
+// that has not yet been read into memory. We only read
+// parts of the file into memory if you navigate there.
+// What gets returned from NeWFileChunk is the head log
+// line and the tail log line, which allows for easily jumping
+// to the head and tail of the file.
 func NewFileChunk(f *os.File) (*FileChunk, *FileChunk) {
 	fileInfo, err := f.Stat()
 	check(err)
@@ -206,6 +249,7 @@ func NewFileChunk(f *os.File) (*FileChunk, *FileChunk) {
 }
 
 // PrintFileChunkChain prints the meta info about the entire chain
+// This is used for debugging
 func (fc *FileChunk) PrintFileChunkChain() {
 	head := fc
 	for {
@@ -232,6 +276,7 @@ func (fc *FileChunk) PrintFileChunkChain() {
 }
 
 // ValidateFileChunkChain prints the meta info about the entire chain
+// This is used in testing to validate the state of the FleChunk chain
 func (fc *FileChunk) ValidateFileChunkChain() bool {
 	head := fc
 	for {
@@ -279,7 +324,9 @@ func (fc *FileChunk) ValidateFileChunkChain() bool {
 }
 
 // GetTimeStampFromLine gets the time stamp from the regex
-// This is hardcoded to be like the tendermint logs for now
+// This is hardcoded to be like the tendermint Docker logs for now.
+// TODO: add in the functionality to specify how the time stamp is for each
+// each log file.
 func GetTimeStampFromLine(line string) int64 {
 	compRegEx := *regexp.MustCompile(`(?P<Year>\d{4})-(?P<Month>\d{2})-(?P<Day>\d{2})\|(?P<Hour>\d{2})\:(?P<Minute>\d{2})\:(?P<Second>\d{2})\.(?P<Millisecond>\d{3})`)
 	match := compRegEx.FindStringSubmatch(line)
@@ -306,6 +353,12 @@ func GetTimeStampFromLine(line string) int64 {
 }
 
 // SeparateFirstLogLine breaks off first log line in the loaded chunk
+// This is when we have read in a large chunk of the file and we want to
+// break off just the first line of that chunk. The result is that our
+// linked list will add a node for the beginning log line of the chunk,
+// and then the remaining chunk after that first log line was broken off.
+// This is used when we are navigating forward and reach a FileChunk that
+// has not yet been broken a part.
 func (fc *FileChunk) SeparateFirstLogLine() *FileChunk {
 	originalChunkEndIndex := fc.FileOffsetEnd - fc.FileOffsetStart
 	var firstLineChunkIndex int64 = 0
@@ -348,7 +401,13 @@ func (fc *FileChunk) SeparateFirstLogLine() *FileChunk {
 	return fc
 }
 
-// SeparateLastLogLine breaks off the last log line in the loaded chunk
+// SeparateLastLogLine breaks off the last log line in the loaded chunk.
+// This is when we have read in a large chunk of the file and we want to
+// break off just the last line of that chunk. The result is that our
+// linked list will add a node for the last log line of the chunk,
+// and then the remaining chunk before that last log line was broken off.
+// This is used when we are navigating backward and reach a FileChunk that
+// has not yet been broken a part.
 func (fc *FileChunk) SeparateLastLogLine() *FileChunk {
 	originalChunkEndIndex := fc.FileOffsetEnd - fc.FileOffsetStart
 	newPrevEndIndex := originalChunkEndIndex - 1
@@ -387,7 +446,16 @@ func (fc *FileChunk) SeparateLastLogLine() *FileChunk {
 	return fc
 }
 
-// GetNextFileChunk returns the next file chunk line
+// GetNextFileChunk returns the next file chunk line.
+// This is used when navigating forward. The easy case is
+// when the next log line has already been broken off
+// and we can just return it. Otherwise, the next easiest case
+// is when the next FileChunk has been loaded into memory
+// but we just need to break off the first log line of the chunk.
+// After that, we enter a chunk that requires us to read from disk.
+// After reading from disk, we handle it just like
+// the second case where we have a large chunk that needs to
+// have the first log broken off.
 func (fc *FileChunk) GetNextFileChunk() *FileChunk {
 	if fc == nil || fc.NextChunk == nil {
 		return nil
@@ -405,7 +473,9 @@ func (fc *FileChunk) GetNextFileChunk() *FileChunk {
 	return fc.NextChunk.SeparateFirstLogLine()
 }
 
-// GetNextTimestampedFileChunk returns the next file chunk line with a timestamp
+// GetNextTimestampedFileChunk returns the next file chunk line with a timestamp.
+// Because not all log lines have timestamps, sometimes we need to just skip over
+// log lines that don't have a time stamp until we get to one that does.
 func (fc *FileChunk) GetNextTimestampedFileChunk() *FileChunk {
 	nextFileChunk := fc.GetNextFileChunk()
 	if nextFileChunk == nil {
@@ -425,7 +495,16 @@ func (fc *FileChunk) GetNextTimestampedFileChunk() *FileChunk {
 	return nil
 }
 
-// GetPrevFileChunk returns the previous file chunk line
+// GetPrevFileChunk returns the previous file chunk line.
+// This is used when navigating backward. The easy case is
+// when the previous log line has already been broken off
+// and we can just return it. Otherwise, the next easiest case
+// is when the previous FileChunk has been loaded into memory
+// but we just need to break off the last log line of the chunk.
+// After that, we enter a chunk that requires us to read from disk.
+// After reading from disk, we handle it just like
+// the second case where we have a large chunk that needs to
+// have the last log line broken off.
 func (fc *FileChunk) GetPrevFileChunk() *FileChunk {
 	if fc == nil || fc.PrevChunk == nil {
 		return nil
@@ -443,7 +522,9 @@ func (fc *FileChunk) GetPrevFileChunk() *FileChunk {
 	return fc.PrevChunk.SeparateLastLogLine()
 }
 
-// GetPrevTimestampedFileChunk returns the prev file chunk line with a timestamp
+// GetPrevTimestampedFileChunk returns the previous file chunk line with a timestamp.
+// Because not all log lines have timestamps, sometimes we need to just skip over
+// log lines that don't have a time stamp until we get to one that does.
 func (fc *FileChunk) GetPrevTimestampedFileChunk() *FileChunk {
 	prevFileChunk := fc.GetPrevFileChunk()
 	if prevFileChunk == nil {
@@ -463,7 +544,11 @@ func (fc *FileChunk) GetPrevTimestampedFileChunk() *FileChunk {
 	return nil
 }
 
-// GetFileChunkClosestToTime returns the previous file chunk line just before time
+// GetFileChunkClosestToTime returns the previous file chunk line just before time.
+// This is used for searching for a particular time in the log file.
+// Note that right now, this just does a brute force linear search.
+// TODO: Implement binary search which will run in logarithmic time, and more
+// importanly not load the whole file into memory when its not needed.
 func (fc *FileChunk) GetFileChunkClosestToTime(searchTime int64) *FileChunk {
 	currFileChunk := fc.GetPrevTimestampedFileChunk()
 	if currFileChunk == nil {
@@ -477,9 +562,9 @@ func (fc *FileChunk) GetFileChunkClosestToTime(searchTime int64) *FileChunk {
 			nextChunk := currFileChunk.GetNextTimestampedFileChunk()
 			if nextChunk == nil || nextChunk.LineTimeStamp > searchTime {
 				return currFileChunk
-			} else {
-				currFileChunk = nextChunk
 			}
+
+			currFileChunk = nextChunk
 		}
 	} else if currFileChunk.LineTimeStamp > searchTime {
 		// Search backward until we get a chunk before search time and return that
