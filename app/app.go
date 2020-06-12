@@ -1,3 +1,4 @@
+// Package app is the main UI that used rivo/tview
 package app
 
 import (

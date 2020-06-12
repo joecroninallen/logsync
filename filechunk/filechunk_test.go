@@ -1,3 +1,4 @@
+// Package filechunk_test tests the filechunk code
 package filechunk_test
 
 import (

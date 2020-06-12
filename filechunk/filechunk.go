@@ -1,3 +1,4 @@
+// Package filechunk has code for reading file into memory in chunks as needed
 package filechunk
 
 import (
