@@ -17,9 +17,14 @@ Here are the valid commands:
     This will create the logsync executable in the current directory, and you can put it in a folder that 
     is in your path or just run it where it is.
 
+    To test out the logsync utility, you can use the sample log files under test_data and run like this:
+    "./logsync test_data/logs/*"
+    This will run the logsync against the 4 log files that were generated from a Tendermint cluster.
+
+
     To clean:
     make clean
 
-    To test the filechunk code to make sure its valud:
+    To test the filechunk code to make sure its valid:
     make test
 
